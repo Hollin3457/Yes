@@ -1,0 +1,43 @@
+Client -> ultrasound_recon_v1.py: Reconstruct(request)
+ultrasound_recon_v1.py -> ultrasound_recon_repo: create(method_id, cuboid_size, pixels_per_mm)
+ultrasound_recon_v1.py <-- ultrasound_recon_repo: id
+
+group For each image
+    ultrasound_recon_v1.py -> ultrasound_recon_repo: add_image(id, image, position, rotation)
+end
+
+ultrasound_recon_v1.py -> queue: put(id)
+Client <-- ultrasound_recon_v1.py: id
+
+group Worker thread
+    ultrasound_recon_v1.py -> ultrasound_recon_v1.py: __reconstruction_worker()
+
+    group While loop
+        ultrasound_recon_v1.py -> queue: get()
+        ultrasound_recon_v1.py <-- queue: id
+
+        ultrasound_recon_v1.py -> ultrasound_recon_repo: get(id)
+        ultrasound_recon_v1.py <-- ultrasound_recon_repo: method_id, cuboid_size, pixels_per_mm
+
+        ultrasound_recon_v1.py -> ultrasound_recon_repo: get_images(id)
+        ultrasound_recon_v1.py <-- ultrasound_recon_repo: images[], position[], rotation[]
+
+        group For each image
+            ultrasound_recon_v1.py -> ultrasound_recon_v1.py: cv2.imdecode()
+        end
+
+        ultrasound_recon_v1.py -> thyroid_reconstruction.py: construct(images[], position[], rotation[], ppcm_w, ppcm_h, cuboid_size)
+
+        thyroid_reconstruction.py -> segmentation: segment(images[])
+        thyroid_reconstruction.py <-- segmentation: segmented_images[]
+
+        thyroid_reconstruction.py -> voxelcon: construct(segmented_images[], position[], rotation[], ppcm_w, ppcm_h, cuboid_size)
+        thyroid_reconstruction.py <-- voxelcon: voxel_3d_array, voxel_cell_size
+
+        thyroid_reconstruction.py -> meshcon: construct(voxel_3d_array, voxel_cell_size)
+        thyroid_reconstruction.py <-- meshcon: mesh
+
+        ultrasound_recon_v1.py <-- thyroid_reconstruction.py: mesh
+        ultrasound_recon_v1.py -> ultrasound_recon_repo: add_mesh(id, mesh)
+    end
+end

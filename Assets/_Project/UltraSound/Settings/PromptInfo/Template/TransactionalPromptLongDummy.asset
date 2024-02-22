@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 140a843886574af483d46f3e3d9fba0f, type: 3}
+  m_Name: TransactionalPromptLongDummy
+  m_EditorClassIdentifier: 
+  promptTitle: Maximum 52pt display title of two lines with center alignment
+  promptContent: "8 lines is maximum number of lines with DIN 24pt Regular font for
+    the paragraph text if the title has two lines. \r\nLorem erat volutpat. Ut wisi
+    enim ad minim veniam, quis nostrud exerci tation ullamcorper suscipit lobortis
+    nisl ut aliquip ex ea commodo consequat. Duis autem vel eum iriure dolor in hendrerit
+    in vulputate velit. Lorem ipsum dolor sit amet, consectetuer adipiscing elit,
+    sed diam nonummy nibh euismod tincidunt ut laoreet dolore magna aliquam erat
+    volutpat. Ut wisi enim ad minim veniam, quis. "
+  hasInputField: 0
+  cancelable: 1

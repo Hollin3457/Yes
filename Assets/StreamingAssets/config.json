@@ -1,0 +1,9 @@
+{
+  "BackendAddress": "mock",
+  "BackendPort": "50000",
+  "SidecarAddress": "192.168.166.99",
+  "SidecarPort": "51000",
+  "TrackerServerAddress": "10.65.33.84",
+  "TrackerServerPort": "51000",
+  "UltraSound": 7
+}

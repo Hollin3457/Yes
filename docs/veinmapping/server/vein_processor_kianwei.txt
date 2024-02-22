@@ -1,0 +1,56 @@
+participant veinmapper_v1.py
+participant vein_processor_kianwei
+participant inferencer
+
+veinmapper_v1.py -> vein_processor_kianwei: __init__()
+vein_processor_kianwei -> input_queues[]: new[max_concurrent_devices]
+vein_processor_kianwei -> output_queues[]: new[max_concurrent_devices]
+vein_processor_kianwei -> inferencer: spawn(in_queues, out_queues, ...)
+vein_processor_kianwei -> inferencer: start()
+
+group first frame
+    veinmapper_v1.py -> vein_processor_kianwei: add_device_id(device_id)
+end
+
+group every frame
+    veinmapper_v1.py -> vein_processor_kianwei: calculate_pointcloud(...)
+    vein_processor_kianwei -> vein_utils: search_cuboid(depth_map, instrinsics_map, cuboid)
+    vein_processor_kianwei <-- vein_utils: arm_segment_mask
+
+    group if arm_segment_mask is not empty
+        vein_processor_kianwei -> vein_utils: normalize_brightness(bright_map, arm_segment_mask, threshold)
+        vein_processor_kianwei <-- vein_utils: image
+
+        vein_processor_kianwei -> input_queues[]: put(d2w, image, ...)
+
+        group loop to read queues
+            group for each input_queue
+                inferencer -> input_queues[]: get
+                inferencer <-- input_queues[]: image
+                inferencer -> inferencer: batched_images.append(image)
+            end
+
+            inferencer -> GPU: model(batched_images[])
+            inferencer <-- GPU: segmented_images[]
+            
+            group for each segmented_images
+                inferencer -> output_queues[]: put(segmented_image)
+            end
+        end
+
+        group loop until output is ready
+            vein_processor_kianwei -> output_queues[]: get()
+            vein_processor_kianwei <-- output_queues[]: segmented_image
+        end
+
+        vein_processor_kianwei -> vein_processor_kianwei: crop(segmented_image)
+
+        vein_processor_kianwei -> vein_utils: skeletonize(cropped_segmented_image)
+        vein_processor_kianwei <-- vein_utils: skeletonized_image
+
+        vein_processor_kianwei -> vein_processor_kianwei:  point[] = skeletonized_image * instrinsics_map * depth_map
+        veinmapper_v1.py <-- vein_processor_kianwei: point[]
+    end
+end
+
+

@@ -1,0 +1,35 @@
+Client -> veinmapper_v1.py: Setup(device_id, lut)
+veinmapper_v1.py -> lut_repo: create_depth_lut(device_id, lut)
+
+group loop every frame obtained from depth and IR camera
+    Client -> veinmapper_v1.py: Stream(device_id, ir_image, depth_image, d2w, ...)
+    group first frame only
+        veinmapper_v1.py -> lut_repo: get_depth_lut(device_id)
+        veinmapper_v1.py <-- lut_repo: depth_lut
+        veinmapper_v1.py -> veinmapper_v1.py: convert_raw_to_intrinsics(depth_lut)
+        veinmapper_v1.py -> vein_processor_kianwei: add_device_id(device_id)
+    end
+
+    group if save_data is True
+        group on every first save_data toggle
+            veinmapper_v1.py -> vein_session_repo: create()
+            veinmapper_v1.py <-- vein_session_repo: session_id
+        end
+        veinmapper_v1.py -> vein_session_repo: add_entry(session_id, device_id, ir_image, depth_image, d2w, ...)
+    end
+
+    veinmapper_v1.py -> veinmapper_v1.py: _DecompressProcess(ir_image, depth_image, compression_type)
+
+    veinmapper_v1.py -> vein_processor_kianwei: calculate_pointcloud(intrinsics, ir_image, depth_image, d2w, ...)
+    veinmapper_v1.py <-- vein_processor_kianwei: point[]
+
+    veinmapper_v1.py -> vein_processor_kianwei: calculate_boundingbox(intrinsics, cuboid, d2w)
+    veinmapper_v1.py <-- vein_processor_kianwei: crop_region
+
+    Client <-- veinmapper_v1.py: point[], crop_region
+end
+
+group disconnect
+    Client -> veinmapper_v1.py: disconnect event
+    veinmapper_v1.py -> vein_processor_kianwei: remove_device_id(device_id)
+end

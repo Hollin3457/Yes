@@ -1,0 +1,50 @@
+participant UnityEngine
+participant QuickViewManager
+participant AppManager
+participant UltrasoundSideCarTracker
+participant HL2ResearchMode.DLL
+participant marker_trackr_v1.py
+
+QuickViewManager -> AppManager: StartMarkerDetect()
+AppManager -> UltrasoundSideCarTracker: new()
+AppManager <-- UltrasoundSideCarTracker: IMarkerTracker
+AppManager -> UltrasoundSideCarTracker: Start()
+UltrasoundSideCarTracker -> UltrasoundSideCarTracker: start StartStreamingAsync() thread
+
+group StartStreamingAsync thread
+    UltrasoundSideCarTracker -> HL2ResearchMode.DLL: StartLFLoop()
+    UltrasoundSideCarTracker -> HL2ResearchMode.DLL: StartRFLoop()
+    UltrasoundSideCarTracker -> UltrasoundSideCarTracker: start ReadFromSideCarStreaming() thread
+
+    group While Loop
+        group if HL2ResearchMode.DLL: LFImageUpdated()
+            UltrasoundSideCarTracker -> HL2ResearchMode.DLL: GetLFCameraBuffer()
+            UltrasoundSideCarTracker <-- HL2ResearchMode.DLL: leftImage
+            UltrasoundSideCarTracker -> HL2ResearchMode.DLL: PrintLeftToWorld()
+            UltrasoundSideCarTracker <-- HL2ResearchMode.DLL: l2w
+        end 
+        group if HL2ResearchMode.DLL: RFImageUpdated()
+            UltrasoundSideCarTracker -> HL2ResearchMode.DLL: GetRFCameraBuffer()
+            UltrasoundSideCarTracker <-- HL2ResearchMode.DLL: rightImage
+            UltrasoundSideCarTracker -> HL2ResearchMode.DLL: PrintRightToWorld()
+            UltrasoundSideCarTracker <-- HL2ResearchMode.DLL: r2w
+        end 
+        group if franes in sync, SendToSideCarStreaming()
+            UltrasoundSideCarTracker -> marker_tracker_v1.py: gRPC TrackStereoStreaming(leftImage, rightImage, l2w, r2w)
+        end
+    end 
+end
+
+group ReadFromSideCarStreaming thread 
+    group While Loop
+        UltrasoundSideCarTracker <-- marker_tracker_v1.py: gRPC TrackStereoStreaming() response
+    end
+end
+
+group On each frame
+    UnityEngine ->AppManager: Update()
+    AppManager -> UltrasoundSideCarTracker: GetWorldPosition(markerId)
+    AppManager <-- UltrasoundSideCarTracker: Vector3 position
+    AppManager -> UltrasoundSideCarTracker: GetWorldRotation(markerId)
+    AppManager <-- UltrasoundSideCarTracker: Quaternion rotation
+end

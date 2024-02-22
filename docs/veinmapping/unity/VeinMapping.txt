@@ -1,0 +1,80 @@
+participant UnityEngine
+participant AppManager
+participant VeinSensorStream
+participant VeinServerProcessor
+participant HL2ResearchMode.DLL
+
+UnityEngine -> AppManager: Start()
+AppManager -> HL2ResearchMode.DLL: Initialize
+AppManager <-- HL2ResearchMode.DLL: static HL2ResearchMode object
+
+group SetupVeinSensorStream
+    AppManager -> VeinSensorStream: new()
+    AppManager <-- VeinSensorStream: VeinSensorStream object
+    AppManager ->VeinSensorStream: register OnSensorStreamUpdated event
+    AppManager ->VeinSensorStream: StartSensorStream()
+    VeinSensorStream -> HL2ResearchMode.DLL: StartDepthSensorLoop()
+    VeinSensorStream -> VeinSensorStream: start OnResearchModeAsync loop
+    group loop while LUT is not ready
+        AppManager ->VeinSensorStream: IsDepthLUTReady()
+        AppManager <--VeinSensorStream: boolean
+    end
+    AppManager ->VeinSensorStream: GetDepthLUT()
+    AppManager <--VeinSensorStream: lut[]
+end
+
+group SetupVeinProcess
+    AppManager -> VeinServerProcessor: new(deviceId, lut, ...)
+    VeinServerProcessor -> VeinServerProcessor: AllocatePointCloudBuffer()
+    AppManager <-- VeinServerProcessor: IVeinProcessor object
+
+    AppManager ->VeinServerProcessor: register OnPointCloudUpdated event
+    AppManager ->VeinServerProcessor: register OnCropChanged event
+    AppManager ->VeinServerProcessor: register OnDeltaTimeChanged event
+
+    AppManager -> VeinServerProcessor: Start()
+
+    group SetupServerWithDeviceAndLUT
+        VeinServerProcessor -> veinmapper_v1.py: gRPC Setup(device_id, lut[])
+        VeinServerProcessor <-- veinmapper_v1.py: device_id
+    end 
+
+    VeinServerProcessor -> VeinServerProcessor: CreateStreamCall()
+    VeinServerProcessor -> VeinServerProcessor: start ResponseReader loop
+end
+
+group VeinSensorStream OnResearchModeAsync loop
+    VeinSensorStream ->HL2ResearchMode.DLL: DepthMapDataUpdated()
+    group if DepthMapDataUpdated()
+        group first frame
+            VeinSensorStream -> HL2ResearchMode.DLL: GetDepthIntrinsics()
+            VeinSensorStream <-- HL2ResearchMode.DLL: lut[]
+        end 
+
+        VeinSensorStream -> HL2ResearchMode.DLL: GetDepthMapBuffer()
+        VeinSensorStream <-- HL2ResearchMode.DLL: depth[]
+        VeinSensorStream -> HL2ResearchMode.DLL: GetShortAbImageBuffer()
+        VeinSensorStream <-- HL2ResearchMode.DLL: ir[]
+        VeinSensorStream ->VeinSensorStream: crop depth[]
+        VeinSensorStream ->VeinSensorStream: crop ir[]
+        VeinSensorStream ->AppManager: OnSensorStreamUpdated(ir[], depth[], d2w, crop)
+
+        AppManager -> VeinServerProcessor: Process(ir[], depth[], d2w, cuboid, crop, ...)
+        VeinServerProcessor -> veinmapper_v1.py: gRPC Stream(deviceId, ir, depth, d2w, cuboid, mapperType, compression, ...)
+    end
+end 
+
+group VeinServerProcessor ResponseReader loop
+    VeinServerProcessor <-- veinmapper_v1.py: pointCloud[], crop, deltaTime
+    VeinServerProcessor ->VeinServerProcessor: CopyPointsToPointCloudBuffer()
+    VeinServerProcessor -> AppManager: event OnPointCloudUpdated(pointCloud[])
+    VeinServerProcessor -> AppManager: event OnCropChanged(crop)
+    AppManager -> VeinSensorStream: SetImageSize(crop)
+    VeinServerProcessor ->AppManager: event OnDeltaTimeChanged(deltaTime)
+    AppManager ->VeinSensorStream: SetDeltaTime(deltaTime)
+end
+
+UnityEngine -> AppManager: Update()
+group If PointCloudData updated
+    AppManager -> GPUInstancingPointCloud: UpdatePoints(pointsToRender, cuboid.bounds)
+end

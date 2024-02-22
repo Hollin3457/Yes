@@ -1,0 +1,38 @@
+participant RecordScanManager
+participant BackendUltrasoundReconstructor
+participant MeshVisualizationManager
+participant IUltrasoundRecorder
+participant ultrasound_recon_v1.py
+
+RecordScanManager -> BackendUltrasoundReconstructor: new()
+RecordScanManager <-- BackendUltrasoundReconstructor: IUltrasoundReconstructor
+RecordScanManager -> BackendUltrasoundReconstructor: Reconstruct(recorder, ppcm, ...)
+
+BackendUltrasoundReconstructor -> IUltrasoundRecorder: get Cuboid
+BackendUltrasoundReconstructor <--IUltrasoundRecorder: cuboid
+BackendUltrasoundReconstructor -> IUltrasoundRecorder: get Frames
+BackendUltrasoundReconstructor <--IUltrasoundRecorder: frames[]
+BackendUltrasoundReconstructor ->RecordScanManager: return
+
+group async call
+    BackendUltrasoundReconstructor -> ultrasound_recon_v1.py: gRPC Reconstruct(method, frames[], cuboid, ...)
+    BackendUltrasoundReconstructor <-- ultrasound_recon_v1.py: reconstruction_id
+
+    group loop every pollInterval until timeout
+        BackendUltrasoundReconstructor -> ultrasound_recon_v1.py: gRPC Status(reconstruction_id)
+        BackendUltrasoundReconstructor <-- ultrasound_recon_v1.py: bool completed
+    end
+
+    BackendUltrasoundReconstructor -> ultrasound_recon_v1.py: gRPC Mesh(reconstruction_id)
+    BackendUltrasoundReconstructor <-- ultrasound_recon_v1.py: string mesh
+end
+
+group loop every 1 second
+    RecordScanManager ->BackendUltrasoundReconstructor: get Status
+    RecordScanManager <--BackendUltrasoundReconstructor: UltrasoundReconstructionStatus
+    group if UltrasoundReconstructionStatus == Complete
+        RecordScanManager ->BackendUltrasoundReconstructor: get Mesh
+        RecordScanManager <--BackendUltrasoundReconstructor: mesh
+        RecordScanManager -> MeshVisualizationManager: LoadObj(mesh)
+    end
+end

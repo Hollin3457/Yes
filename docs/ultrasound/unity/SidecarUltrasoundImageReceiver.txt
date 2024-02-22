@@ -1,0 +1,24 @@
+participant UnityEngine
+participant QuickViewManager
+participant AppManager
+participant SidecarUltrasoundImageReceiver
+participant ultrasound_capture_v1.py
+
+QuickViewManager -> AppManager: StartImageReceiving()
+AppManager -> SidecarUltrasoundImageReceiver: new()
+SidecarUltrasoundImageReceiver ->SidecarUltrasoundImageReceiver: image = new Texture2D(...)
+AppManager <-- SidecarUltrasoundImageReceiver: IUltrasoundImageReceiver
+AppManager -> SidecarUltrasoundImageReceiver: Start()
+SidecarUltrasoundImageReceiver -> ultrasound_capture_v1.py: gRPC Setup()
+SidecarUltrasoundImageReceiver <-- ultrasound_capture_v1.py: response
+SidecarUltrasoundImageReceiver -> ultrasound_capture_v1.py: gRPC Stream(fps, quality, restart)
+group loop while stream is active
+    SidecarUltrasoundImageReceiver <-- ultrasound_capture_v1.py: imageBuffer[]
+end
+
+group on every render frame
+    UnityEngine ->QuickViewManager: Update()
+    QuickViewManager ->AppManager: UpdateImage()
+    AppManager ->SidecarUltrasoundImageReceiver: UpdateImage()
+    SidecarUltrasoundImageReceiver->SidecarUltrasoundImageReceiver: image.LoadImage(imageBuffer[])
+end

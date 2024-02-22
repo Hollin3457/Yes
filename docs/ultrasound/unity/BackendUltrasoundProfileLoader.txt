@@ -1,0 +1,22 @@
+participant AppManager
+participant BackendUltrasoundProfileLoader
+participant SidecarUltrasoundImageReceiver
+participant ultrasound_profile_v1.py
+
+AppManager -> AppManager: LoadDefaultUltrasoundProfile()
+AppManager -> BackendUltrasoundProfileLoader: new()
+AppManager <-- BackendUltrasoundProfileLoader: IUltrasoundProfileLoader
+AppManager -> BackendUltrasoundProfileLoader: List()
+BackendUltrasoundProfileLoader -> ultrasound_profile_v1.py: gRPC List()
+BackendUltrasoundProfileLoader <-- ultrasound_profile_v1.py: profiles[]
+AppManager <-- BackendUltrasoundProfileLoader: profiles[]
+
+AppManager -> BackendUltrasoundProfileLoader: Get(id)
+BackendUltrasoundProfileLoader -> ultrasound_profile_v1.py: gRPC Get(id)
+BackendUltrasoundProfileLoader <-- ultrasound_profile_v1.py: profile
+AppManager <-- BackendUltrasoundProfileLoader: profile
+
+group using profile to create image receiver
+    AppManager -> SidecarUltrasoundImageReceiver: new(profile.DeviceConfig)
+    AppManager <-- SidecarUltrasoundImageReceiver: IUltrasoundImageReceiver
+end 
